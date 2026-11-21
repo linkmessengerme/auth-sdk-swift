@@ -9,10 +9,12 @@ device and keeps the session in the Keychain.
 - ID tokens are verified on the device: signature, issuer, audience, expiry and nonce.
 - Sessions survive app restarts; tokens are refreshed and rotated automatically.
 - No secrets in the app, and no third-party Swift dependencies.
+- Device attestation with Apple App Attest: a key in the Secure Enclave signs every
+  token request, so a session cannot be moved to another device.
 - Typed errors you can branch on.
 
 > Requires **iOS 13+** on arm64 (device and Apple-silicon simulator). Works from Swift 5
-> and Swift 6 apps. Version **0.1.0** is the first public release; sign-in requires a
+> and Swift 6 apps. Version **0.2.0** adds device attestation; sign-in requires a
 > current version of the Link app on the same device.
 
 The protocol core is written in Rust and shipped as a prebuilt XCFramework. Its
@@ -31,7 +33,7 @@ Or add it to `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/linkmessengerme/auth-sdk-swift", from: "0.1.0")
+    .package(url: "https://github.com/linkmessengerme/auth-sdk-swift", from: "0.2.0")
 ],
 targets: [
     .target(name: "App", dependencies: [.product(name: "LinkAuth", package: "auth-sdk-swift")])
@@ -114,6 +116,55 @@ result has `subject` and the optional `name`, `preferredUsername`, `picture`,
 still sign in; `phoneNumber` is then `nil`. Data is read again on every call and is not
 stored by the SDK. Do not log it.
 
+## Device attestation (App Attest)
+
+Attestation proves to Link that token requests come from your real app on a real
+device. The SDK creates an App Attest key in the Secure Enclave, has Apple attest it
+once at the first sign-in, and signs the code exchange and every token refresh with
+it. Nothing needs to be called in code, but two things must be set up:
+
+1. **Add the App Attest capability** to the app target in Xcode (Signing &
+   Capabilities → + Capability → App Attest). It adds the entitlement
+   `com.apple.developer.devicecheck.appattest-environment`. Xcode sets it to
+   `development`; builds distributed through TestFlight and the App Store use
+   `production`. Without the capability the key cannot be attested and the device
+   counts as not attested.
+2. **Enter your Team ID in Link Console** for the application (10 characters, shown in
+   your Apple Developer account under Membership). Link compares the attestation with
+   `TeamID.bundleID`. Development builds are accepted only when "accept development
+   builds" is on for the application in Console.
+
+The mode is set per application in Link Console:
+
+| Mode | What happens |
+|---|---|
+| Off | No key is created. The SDK works as version 0.1.0 did. |
+| Report only | Every device signs in; Console shows what the device attested. |
+| Required | A device that did not pass is refused or signs in without `phone`, as you choose in Console. |
+
+- App Attest needs iOS 14 and a real device. On iOS 13, in the simulator, in an app
+  extension, without the capability or when Apple's servers cannot be reached there is
+  no key: the sign-in goes on and the server decides according to the mode. Nothing
+  about attestation can fail a sign-in on the device by itself.
+- The key is attested only at the first sign-in, never at app launch, and is reused
+  until the app is uninstalled; it survives sign-out.
+- `session.user.deviceTrust` is `"verified"`, `"mismatch"`, `"none"`, or `nil` while
+  the mode is Off. The same value is the `device_trust` claim of the ID token, so your
+  backend can read it with a server SDK.
+- `ErrorCode.attestationRequired`: the mode is Required and this device did not pass.
+  Show a message; retrying on the same device will not help.
+- With attestation, a token refresh whose answer was lost in the network is repeated
+  on the next call instead of ending the session.
+- To turn attestation off in the SDK:
+
+```swift
+let auth = try await LinkAuth.create(configJson: configJson, redirectUri: redirectUri,
+                                     attestation: false)
+```
+
+Attestation confirms the app build and the device. It does not detect a jailbroken
+iPhone or code injected into your running app.
+
 ## Sign-in with your own backend
 
 Your backend first creates and stores a one-time challenge with a cryptographically
@@ -144,9 +195,9 @@ sign-in. End an existing session deliberately before signing in again.
 - Cancelling a Task that waits in `getSession` or `getIdToken` does not interrupt a
   shared refresh; its result is kept for the other callers.
 - `LinkAuthFailure.protocolFailure(code)` carries a safe-to-log code such as
-  `authorizationDenied`, `cancelled`, `expired` or `storage`. `cannotOpenLink` and
-  `closed` are separate cases. A Task cancelled before an operation starts can throw
-  `CancellationError`.
+  `authorizationDenied`, `cancelled`, `expired`, `attestationRequired` or `storage`.
+  `cannotOpenLink` and `closed` are separate cases. A Task cancelled before an
+  operation starts can throw `CancellationError`.
 - A callback with a wrong `state` or issuer does not end the real attempt. A duplicate
   of a handled callback returns `nil`.
 - `signOut()` disables the local session first. On `revocationPending` call it again
