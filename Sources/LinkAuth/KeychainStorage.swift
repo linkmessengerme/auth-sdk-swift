@@ -50,6 +50,8 @@ private struct SystemKeychain: KeychainBackend {
 /// Device-only, non-synchronizing Keychain records, addressed through an
 /// installation ID excluded from backups. A restored/reinstalled app cannot
 /// select old Keychain journals. Locked/unavailable storage is an error.
+/// Holds the session journal (`link.auth.v1.*`) and the record of the attested
+/// key (`link.attest.v1.*`); App Attest keys do not survive a reinstall either.
 public final class KeychainStorage: SecureStorage, @unchecked Sendable {
     private struct Envelope: Codable { let revision: String; let payload: String }
     private static let localGate = NSLock()
@@ -132,7 +134,7 @@ public final class KeychainStorage: SecureStorage, @unchecked Sendable {
     }
 
     private func transaction<T>(_ key: String, _ action: () throws -> T) throws -> T {
-        guard key.range(of: #"^link\.auth\.v1\.[A-Za-z0-9_-]{43}$"#, options: .regularExpression) != nil else {
+        guard key.range(of: #"^link\.(auth|attest)\.v1\.[A-Za-z0-9_-]{43}$"#, options: .regularExpression) != nil else {
             throw StorageFailure.Unavailable
         }
         Self.localGate.lock(); defer { Self.localGate.unlock() }

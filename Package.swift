@@ -9,8 +9,8 @@ let package = Package(
         // Prebuilt protocol core. Sources: https://github.com/linkmessengerme/auth-sdk
         .binaryTarget(
             name: "LinkAuthCoreFFI",
-            url: "https://github.com/linkmessengerme/auth-sdk-swift/releases/download/v0.1.0/LinkAuthCoreFFI.xcframework.zip",
-            checksum: "60add39a317742cb0a75d249c691231d18fc03d2277bbce2a7f3866d05f1a0f0"
+            url: "https://github.com/linkmessengerme/auth-sdk-swift/releases/download/v0.2.0/LinkAuthCoreFFI.xcframework.zip",
+            checksum: "c8e193a7c9f65de134006e03c63e6530ae1b5a4106713900c9a85a6d12e6d3fa"
         ),
         .target(name: "LinkAuthCore", dependencies: ["LinkAuthCoreFFI"],
             linkerSettings: [.linkedFramework("Security"), .linkedLibrary("resolv")]),

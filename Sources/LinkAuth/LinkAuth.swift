@@ -44,15 +44,23 @@ public actor LinkAuth {
     private var loggingOut = false
     private var closed = false
 
+    /// `attestation: false` turns device attestation off: no App Attest key is
+    /// created and token requests are not signed. Leave it on unless you have a
+    /// reason; an application that requires attestation in Console then refuses
+    /// the sign-in with `ErrorCode.attestationRequired`.
     public static func create(configJson: String, redirectUri: String,
         keychainService: String = "me.linkmessenger.auth",
-        opener: any LinkAuthorizationOpener = SystemLinkOpener()) async throws -> LinkAuth {
+        opener: any LinkAuthorizationOpener = SystemLinkOpener(),
+        attestation: Bool = true) async throws -> LinkAuth {
         let client = try await Task.detached {
             let transport = URLSessionTransport()
             do {
                 let storage = try KeychainStorage(service: keychainService)
-                let core = try LinkSessionClient(configJson: configJson, redirectUri: redirectUri,
-                    transport: transport, storage: storage)
+                let core = attestation
+                    ? try LinkSessionClient.withAttestation(configJson: configJson, redirectUri: redirectUri,
+                        transport: transport, storage: storage, attestor: AppAttestAttestor())
+                    : try LinkSessionClient(configJson: configJson, redirectUri: redirectUri,
+                        transport: transport, storage: storage)
                 return LinkAuth(core: core, transport: transport, opener: opener)
             } catch { transport.close(); throw normalized(error) }
         }.value

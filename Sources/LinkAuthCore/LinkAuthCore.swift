@@ -698,6 +698,422 @@ public func FfiConverterTypeAuthorizationRequest_lower(_ value: AuthorizationReq
 
 
 /**
+ * Hardware-backed signing key of this installation. Use the supplied platform
+ * adapters. Private key material never crosses this interface.
+ */
+public protocol DeviceAttestor: AnyObject, Sendable {
+    
+    /**
+     * Cheap and local: false where the platform cannot attest at all.
+     */
+    func isAvailable() throws  -> Bool
+    
+    /**
+     * Create a sign-only P-256 key bound to the 32-byte challenge. `name` is a
+     * namespace for platform aliases. Give up after `timeout_millis`.
+     */
+    func createKey(name: String, challenge: Data, timeoutMillis: UInt32) async throws  -> AttestedKey
+    
+    /**
+     * Android: SHA256withECDSA over `message`, DER. Apple: the assertion for
+     * `clientDataHash = SHA-256(message)`.
+     */
+    func sign(keyRef: String, message: Data) async throws  -> Data
+    
+    func deleteKey(keyRef: String) async throws 
+    
+}
+/**
+ * Hardware-backed signing key of this installation. Use the supplied platform
+ * adapters. Private key material never crosses this interface.
+ */
+open class DeviceAttestorImpl: DeviceAttestor, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_link_auth_ffi_fn_clone_deviceattestor(self.handle, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
+        try! rustCall { uniffi_link_auth_ffi_fn_free_deviceattestor(handle, $0) }
+    }
+
+    
+
+    
+    /**
+     * Cheap and local: false where the platform cannot attest at all.
+     */
+open func isAvailable()throws  -> Bool  {
+    return try  FfiConverterBool.lift(try rustCallWithError(FfiConverterTypeAttestationFailure_lift) {
+    uniffi_link_auth_ffi_fn_method_deviceattestor_is_available(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Create a sign-only P-256 key bound to the 32-byte challenge. `name` is a
+     * namespace for platform aliases. Give up after `timeout_millis`.
+     */
+open func createKey(name: String, challenge: Data, timeoutMillis: UInt32)async throws  -> AttestedKey  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_link_auth_ffi_fn_method_deviceattestor_create_key(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(name),FfiConverterData.lower(challenge),FfiConverterUInt32.lower(timeoutMillis)
+                )
+            },
+            pollFunc: ffi_link_auth_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_link_auth_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_link_auth_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeAttestedKey_lift,
+            errorHandler: FfiConverterTypeAttestationFailure_lift
+        )
+}
+    
+    /**
+     * Android: SHA256withECDSA over `message`, DER. Apple: the assertion for
+     * `clientDataHash = SHA-256(message)`.
+     */
+open func sign(keyRef: String, message: Data)async throws  -> Data  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_link_auth_ffi_fn_method_deviceattestor_sign(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(keyRef),FfiConverterData.lower(message)
+                )
+            },
+            pollFunc: ffi_link_auth_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_link_auth_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_link_auth_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterData.lift,
+            errorHandler: FfiConverterTypeAttestationFailure_lift
+        )
+}
+    
+open func deleteKey(keyRef: String)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_link_auth_ffi_fn_method_deviceattestor_delete_key(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(keyRef)
+                )
+            },
+            pollFunc: ffi_link_auth_ffi_rust_future_poll_void,
+            completeFunc: ffi_link_auth_ffi_rust_future_complete_void,
+            freeFunc: ffi_link_auth_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeAttestationFailure_lift
+        )
+}
+    
+
+    
+}
+
+
+
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceDeviceAttestor {
+
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    //
+    // Store the vtable directly.
+    static let vtable: UniffiVTableCallbackInterfaceDeviceAttestor = UniffiVTableCallbackInterfaceDeviceAttestor(
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            do {
+                try FfiConverterTypeDeviceAttestor.handleMap.remove(handle: uniffiHandle)
+            } catch {
+                print("Uniffi callback interface DeviceAttestor: handle missing in uniffiFree")
+            }
+        },
+        uniffiClone: { (uniffiHandle: UInt64) -> UInt64 in
+            do {
+                return try FfiConverterTypeDeviceAttestor.handleMap.clone(handle: uniffiHandle)
+            } catch {
+                fatalError("Uniffi callback interface DeviceAttestor: handle missing in uniffiClone")
+            }
+        },
+        isAvailable: { (
+            uniffiHandle: UInt64,
+            uniffiOutReturn: UnsafeMutablePointer<Int8>,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> Bool in
+                guard let uniffiObj = try? FfiConverterTypeDeviceAttestor.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return try uniffiObj.isAvailable(
+                )
+            }
+
+            
+            let writeReturn = { uniffiOutReturn.pointee = FfiConverterBool.lower($0) }
+            uniffiTraitInterfaceCallWithError(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn,
+                lowerError: FfiConverterTypeAttestationFailure_lower
+            )
+        },
+        createKey: { (
+            uniffiHandle: UInt64,
+            name: RustBuffer,
+            challenge: RustBuffer,
+            timeoutMillis: UInt32,
+            uniffiFutureCallback: @escaping UniffiForeignFutureCompleteRustBuffer,
+            uniffiCallbackData: UInt64,
+            uniffiOutDroppedCallback: UnsafeMutablePointer<UniffiForeignFutureDroppedCallbackStruct>
+        ) in
+            let makeCall = {
+                () async throws -> AttestedKey in
+                guard let uniffiObj = try? FfiConverterTypeDeviceAttestor.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return try await uniffiObj.createKey(
+                     name: try FfiConverterString.lift(name),
+                     challenge: try FfiConverterData.lift(challenge),
+                     timeoutMillis: try FfiConverterUInt32.lift(timeoutMillis)
+                )
+            }
+
+            let uniffiHandleSuccess = { (returnValue: AttestedKey) in
+                uniffiFutureCallback(
+                    uniffiCallbackData,
+                    UniffiForeignFutureResultRustBuffer(
+                        returnValue: FfiConverterTypeAttestedKey_lower(returnValue),
+                        callStatus: RustCallStatus()
+                    )
+                )
+            }
+            let uniffiHandleError = { (statusCode, errorBuf) in
+                uniffiFutureCallback(
+                    uniffiCallbackData,
+                    UniffiForeignFutureResultRustBuffer(
+                        returnValue: RustBuffer.empty(),
+                        callStatus: RustCallStatus(code: statusCode, errorBuf: errorBuf)
+                    )
+                )
+            }
+            uniffiTraitInterfaceCallAsyncWithError(
+                makeCall: makeCall,
+                handleSuccess: uniffiHandleSuccess,
+                handleError: uniffiHandleError,
+                lowerError: FfiConverterTypeAttestationFailure_lower,
+                droppedCallback: uniffiOutDroppedCallback
+            )
+        },
+        sign: { (
+            uniffiHandle: UInt64,
+            keyRef: RustBuffer,
+            message: RustBuffer,
+            uniffiFutureCallback: @escaping UniffiForeignFutureCompleteRustBuffer,
+            uniffiCallbackData: UInt64,
+            uniffiOutDroppedCallback: UnsafeMutablePointer<UniffiForeignFutureDroppedCallbackStruct>
+        ) in
+            let makeCall = {
+                () async throws -> Data in
+                guard let uniffiObj = try? FfiConverterTypeDeviceAttestor.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return try await uniffiObj.sign(
+                     keyRef: try FfiConverterString.lift(keyRef),
+                     message: try FfiConverterData.lift(message)
+                )
+            }
+
+            let uniffiHandleSuccess = { (returnValue: Data) in
+                uniffiFutureCallback(
+                    uniffiCallbackData,
+                    UniffiForeignFutureResultRustBuffer(
+                        returnValue: FfiConverterData.lower(returnValue),
+                        callStatus: RustCallStatus()
+                    )
+                )
+            }
+            let uniffiHandleError = { (statusCode, errorBuf) in
+                uniffiFutureCallback(
+                    uniffiCallbackData,
+                    UniffiForeignFutureResultRustBuffer(
+                        returnValue: RustBuffer.empty(),
+                        callStatus: RustCallStatus(code: statusCode, errorBuf: errorBuf)
+                    )
+                )
+            }
+            uniffiTraitInterfaceCallAsyncWithError(
+                makeCall: makeCall,
+                handleSuccess: uniffiHandleSuccess,
+                handleError: uniffiHandleError,
+                lowerError: FfiConverterTypeAttestationFailure_lower,
+                droppedCallback: uniffiOutDroppedCallback
+            )
+        },
+        deleteKey: { (
+            uniffiHandle: UInt64,
+            keyRef: RustBuffer,
+            uniffiFutureCallback: @escaping UniffiForeignFutureCompleteVoid,
+            uniffiCallbackData: UInt64,
+            uniffiOutDroppedCallback: UnsafeMutablePointer<UniffiForeignFutureDroppedCallbackStruct>
+        ) in
+            let makeCall = {
+                () async throws -> () in
+                guard let uniffiObj = try? FfiConverterTypeDeviceAttestor.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return try await uniffiObj.deleteKey(
+                     keyRef: try FfiConverterString.lift(keyRef)
+                )
+            }
+
+            let uniffiHandleSuccess = { (returnValue: ()) in
+                uniffiFutureCallback(
+                    uniffiCallbackData,
+                    UniffiForeignFutureResultVoid(
+                        callStatus: RustCallStatus()
+                    )
+                )
+            }
+            let uniffiHandleError = { (statusCode, errorBuf) in
+                uniffiFutureCallback(
+                    uniffiCallbackData,
+                    UniffiForeignFutureResultVoid(
+                        callStatus: RustCallStatus(code: statusCode, errorBuf: errorBuf)
+                    )
+                )
+            }
+            uniffiTraitInterfaceCallAsyncWithError(
+                makeCall: makeCall,
+                handleSuccess: uniffiHandleSuccess,
+                handleError: uniffiHandleError,
+                lowerError: FfiConverterTypeAttestationFailure_lower,
+                droppedCallback: uniffiOutDroppedCallback
+            )
+        }
+    )
+
+    // Rust stores this pointer for future callback invocations, so it must live
+    // for the process lifetime (not just for the init function call).
+    //
+    // `nonisolated(unsafe)` is needed under Swift 6 strict concurrency.
+    // This is safe because the pointee is initialized once during static init
+    // and never mutated by either side of the FFI.  Its fields are C function pointers.
+    nonisolated(unsafe) static let vtablePtr: UnsafePointer<UniffiVTableCallbackInterfaceDeviceAttestor> = {
+        let ptr = UnsafeMutablePointer<UniffiVTableCallbackInterfaceDeviceAttestor>.allocate(capacity: 1)
+        ptr.initialize(to: vtable)
+        return UnsafePointer(ptr)
+    }()
+}
+
+private func uniffiCallbackInitDeviceAttestor() {
+    uniffi_link_auth_ffi_fn_init_callback_vtable_deviceattestor(UniffiCallbackInterfaceDeviceAttestor.vtablePtr)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeDeviceAttestor: FfiConverter {
+    fileprivate static let handleMap = UniffiHandleMap<DeviceAttestor>()
+
+    typealias FfiType = UInt64
+    typealias SwiftType = DeviceAttestor
+
+    public static func lift(_ handle: UInt64) throws -> DeviceAttestor {
+        if ((handle & 1) == 0) {
+            // Rust-generated handle, construct a new class that uses the handle to implement the
+            // interface
+            return DeviceAttestorImpl(unsafeFromHandle: handle)
+        } else {
+            // Swift-generated handle, get the object from the handle map
+            return try handleMap.remove(handle: handle)
+        }
+    }
+
+    public static func lower(_ value: DeviceAttestor) -> UInt64 {
+         if let rustImpl = value as? DeviceAttestorImpl {
+             // Rust-implemented object.  Clone the handle and return it
+            return rustImpl.uniffiCloneHandle()
+         } else {
+            // Swift object, generate a new vtable handle and return that.
+            return handleMap.insert(obj: value)
+         }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DeviceAttestor {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: DeviceAttestor, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDeviceAttestor_lift(_ handle: UInt64) throws -> DeviceAttestor {
+    return try FfiConverterTypeDeviceAttestor.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDeviceAttestor_lower(_ value: DeviceAttestor) -> UInt64 {
+    return FfiConverterTypeDeviceAttestor.lower(value)
+}
+
+
+
+
+
+
+/**
  * Object rather than a generated data class: Debug/toString must not dump a
  * token exchange body containing the PKCE verifier or authorization code.
  */
@@ -1490,6 +1906,22 @@ public convenience init(configJson: String, redirectUri: String, transport: Http
     }
 
     
+    /**
+     * The same client with device attestation: token requests are signed by a
+     * hardware key of this installation when the server asks for it.
+     */
+public static func withAttestation(configJson: String, redirectUri: String, transport: HttpTransport, storage: SecureStorage, attestor: DeviceAttestor)throws  -> LinkSessionClient  {
+    return try  FfiConverterTypeLinkSessionClient_lift(try rustCallWithError(FfiConverterTypeAuthError_lift) {
+    uniffi_link_auth_ffi_fn_constructor_linksessionclient_with_attestation(
+        FfiConverterString.lower(configJson),
+        FfiConverterString.lower(redirectUri),
+        FfiConverterTypeHttpTransport_lower(transport),
+        FfiConverterTypeSecureStorage_lower(storage),
+        FfiConverterTypeDeviceAttestor_lower(attestor),$0
+    )
+})
+}
+    
 
     
 open func beginSignIn(scopes: [String])async throws  -> AuthorizationRequest  {
@@ -2229,6 +2661,64 @@ public func FfiConverterTypeStorageEntry_lower(_ value: StorageEntry) -> UInt64 
 
 
 
+/**
+ * `key_ref` is how the platform finds the key again: a Keystore alias or an
+ * App Attest `keyId`.
+ */
+public struct AttestedKey: Equatable, Hashable {
+    public var keyRef: String
+    public var attestation: KeyAttestation
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(keyRef: String, attestation: KeyAttestation) {
+        self.keyRef = keyRef
+        self.attestation = attestation
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension AttestedKey: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeAttestedKey: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AttestedKey {
+        return
+            try AttestedKey(
+                keyRef: FfiConverterString.read(from: &buf), 
+                attestation: FfiConverterTypeKeyAttestation.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: AttestedKey, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.keyRef, into: &buf)
+        FfiConverterTypeKeyAttestation.write(value.attestation, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAttestedKey_lift(_ buf: RustBuffer) throws -> AttestedKey {
+    return try FfiConverterTypeAttestedKey.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAttestedKey_lower(_ value: AttestedKey) -> RustBuffer {
+    return FfiConverterTypeAttestedKey.lower(value)
+}
+
+
 public struct HttpHeader: Equatable, Hashable {
     public var name: String
     public var value: String
@@ -2290,16 +2780,26 @@ public struct UserIdentity: Equatable, Hashable {
     public var name: String?
     public var preferredUsername: String?
     public var picture: String?
+    /**
+     * `verified`, `unlocked`, `mismatch` or `none`: the server's view of this
+     * device. Absent while the application's device attestation is off.
+     */
+    public var deviceTrust: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(issuer: String, subject: String, grantedScopes: [String], name: String?, preferredUsername: String?, picture: String?) {
+    public init(issuer: String, subject: String, grantedScopes: [String], name: String?, preferredUsername: String?, picture: String?, 
+        /**
+         * `verified`, `unlocked`, `mismatch` or `none`: the server's view of this
+         * device. Absent while the application's device attestation is off.
+         */deviceTrust: String? = nil) {
         self.issuer = issuer
         self.subject = subject
         self.grantedScopes = grantedScopes
         self.name = name
         self.preferredUsername = preferredUsername
         self.picture = picture
+        self.deviceTrust = deviceTrust
     }
 
     
@@ -2323,7 +2823,8 @@ public struct FfiConverterTypeUserIdentity: FfiConverterRustBuffer {
                 grantedScopes: FfiConverterSequenceString.read(from: &buf), 
                 name: FfiConverterOptionString.read(from: &buf), 
                 preferredUsername: FfiConverterOptionString.read(from: &buf), 
-                picture: FfiConverterOptionString.read(from: &buf)
+                picture: FfiConverterOptionString.read(from: &buf), 
+                deviceTrust: FfiConverterOptionString.read(from: &buf)
         )
     }
 
@@ -2334,6 +2835,7 @@ public struct FfiConverterTypeUserIdentity: FfiConverterRustBuffer {
         FfiConverterOptionString.write(value.name, into: &buf)
         FfiConverterOptionString.write(value.preferredUsername, into: &buf)
         FfiConverterOptionString.write(value.picture, into: &buf)
+        FfiConverterOptionString.write(value.deviceTrust, into: &buf)
     }
 }
 
@@ -2423,6 +2925,88 @@ public func FfiConverterTypeUserInfo_lift(_ buf: RustBuffer) throws -> UserInfo 
 #endif
 public func FfiConverterTypeUserInfo_lower(_ value: UserInfo) -> RustBuffer {
     return FfiConverterTypeUserInfo.lower(value)
+}
+
+
+public enum AttestationFailure: Swift.Error, Equatable, Hashable, Foundation.LocalizedError {
+
+    
+    
+    /**
+     * No key this time: unsupported device, a hardware or platform-service failure.
+     */
+    case Unavailable
+    /**
+     * The key no longer exists on the device.
+     */
+    case KeyLost
+
+    
+
+    
+
+    
+    public var errorDescription: String? {
+        String(reflecting: self)
+    }
+    
+}
+
+#if compiler(>=6)
+extension AttestationFailure: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeAttestationFailure: FfiConverterRustBuffer {
+    typealias SwiftType = AttestationFailure
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AttestationFailure {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        
+
+        
+        case 1: return .Unavailable
+        case 2: return .KeyLost
+
+         default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: AttestationFailure, into buf: inout [UInt8]) {
+        switch value {
+
+        
+
+        
+        
+        case .Unavailable:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .KeyLost:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAttestationFailure_lift(_ buf: RustBuffer) throws -> AttestationFailure {
+    return try FfiConverterTypeAttestationFailure.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAttestationFailure_lower(_ value: AttestationFailure) -> RustBuffer {
+    return FfiConverterTypeAttestationFailure.lower(value)
 }
 
 
@@ -2533,6 +3117,10 @@ public enum ErrorCode: Equatable, Hashable {
     case oAuth(code: String
     )
     case invalidNonce
+    /**
+     * The application requires device attestation and this device did not pass.
+     */
+    case attestationRequired
 
 
 
@@ -2609,6 +3197,8 @@ public struct FfiConverterTypeErrorCode: FfiConverterRustBuffer {
         )
         
         case 27: return .invalidNonce
+        
+        case 28: return .attestationRequired
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -2727,6 +3317,10 @@ public struct FfiConverterTypeErrorCode: FfiConverterRustBuffer {
         case .invalidNonce:
             writeInt(&buf, Int32(27))
         
+        
+        case .attestationRequired:
+            writeInt(&buf, Int32(28))
+        
         }
     }
 }
@@ -2744,6 +3338,86 @@ public func FfiConverterTypeErrorCode_lift(_ buf: RustBuffer) throws -> ErrorCod
 #endif
 public func FfiConverterTypeErrorCode_lower(_ value: ErrorCode) -> RustBuffer {
     return FfiConverterTypeErrorCode.lower(value)
+}
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
+public enum KeyAttestation: Equatable, Hashable {
+    
+    /**
+     * DER certificates of the key, the key's own certificate first.
+     */
+    case android(certificateChain: [Data]
+    )
+    /**
+     * `keyId` as `generateKey` returned it and the object from `attestKey`.
+     */
+    case apple(keyId: String, attestation: Data
+    )
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension KeyAttestation: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeKeyAttestation: FfiConverterRustBuffer {
+    typealias SwiftType = KeyAttestation
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> KeyAttestation {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .android(certificateChain: try FfiConverterSequenceData.read(from: &buf)
+        )
+        
+        case 2: return .apple(keyId: try FfiConverterString.read(from: &buf), attestation: try FfiConverterData.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: KeyAttestation, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case let .android(certificateChain):
+            writeInt(&buf, Int32(1))
+            FfiConverterSequenceData.write(certificateChain, into: &buf)
+            
+        
+        case let .apple(keyId,attestation):
+            writeInt(&buf, Int32(2))
+            FfiConverterString.write(keyId, into: &buf)
+            FfiConverterData.write(attestation, into: &buf)
+            
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeKeyAttestation_lift(_ buf: RustBuffer) throws -> KeyAttestation {
+    return try FfiConverterTypeKeyAttestation.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeKeyAttestation_lower(_ value: KeyAttestation) -> RustBuffer {
+    return FfiConverterTypeKeyAttestation.lower(value)
 }
 
 
@@ -3157,6 +3831,31 @@ fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceData: FfiConverterRustBuffer {
+    typealias SwiftType = [Data]
+
+    public static func write(_ value: [Data], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterData.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [Data] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [Data]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterData.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeHttpHeader: FfiConverterRustBuffer {
     typealias SwiftType = [HttpHeader]
 
@@ -3341,6 +4040,18 @@ private let initializationResult: InitializationResult = {
     if (uniffi_link_auth_ffi_checksum_method_authorizationrequest_transaction_id() != 19795) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_link_auth_ffi_checksum_method_deviceattestor_is_available() != 38251) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_link_auth_ffi_checksum_method_deviceattestor_create_key() != 30520) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_link_auth_ffi_checksum_method_deviceattestor_sign() != 20729) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_link_auth_ffi_checksum_method_deviceattestor_delete_key() != 60730) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_link_auth_ffi_checksum_method_httprequest_body() != 41035) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -3440,10 +4151,14 @@ private let initializationResult: InitializationResult = {
     if (uniffi_link_auth_ffi_checksum_constructor_linksessionclient_new() != 41524) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_link_auth_ffi_checksum_constructor_linksessionclient_with_attestation() != 27012) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_link_auth_ffi_checksum_constructor_storageentry_new() != 37235) {
         return InitializationResult.apiChecksumMismatch
     }
 
+    uniffiCallbackInitDeviceAttestor()
     uniffiCallbackInitHttpTransport()
     uniffiCallbackInitSecureStorage()
     return InitializationResult.ok
