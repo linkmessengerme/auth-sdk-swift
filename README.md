@@ -31,7 +31,7 @@ Or add it to `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/linkmessengerme/auth-sdk-swift", from: "0.1.0")
+    .package(url: "https://github.com/linkmessengerme/auth-sdk-swift", from: "0.2.0")
 ],
 targets: [
     .target(name: "App", dependencies: [.product(name: "LinkAuth", package: "auth-sdk-swift")])
@@ -135,6 +135,22 @@ Without the `nonce` argument the SDK generates one. A custom nonce must be 32–
 base64url characters; anything else fails with `.invalidNonce`. An ID token obtained by
 refresh carries no nonce, so `getIdToken(forceRefresh:)` does not replace a new
 sign-in. End an existing session deliberately before signing in again.
+
+## Device attestation
+
+Link signs in only your genuine app on a verified device. The SDK creates an App Attest
+key at the first sign-in and signs the code exchange and every token refresh with it,
+which binds the session to the device.
+
+1. In Xcode add the **App Attest** capability to your app target. Release builds need
+   `com.apple.developer.devicecheck.appattest-environment` set to `production`.
+2. Enter your **Team ID** for the application in Link Console. Development builds from
+   Xcode are accepted only while development builds are allowed for the application.
+
+App Attest needs iOS 14 and a real device. On iOS 13, in the simulator or without the
+capability the sign-in is refused with `ErrorCode.attestationRequired`. Do not create
+`LinkAuth` with `attestation: false`: Link refuses unsigned requests.
+`session.user.deviceTrust` is `"verified"` for every signed-in user.
 
 ## Cancellation and errors
 
